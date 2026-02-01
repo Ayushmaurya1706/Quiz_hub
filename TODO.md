@@ -1,0 +1,4 @@
+- [ ] Update lib/firebase.ts to initialize and export Firebase Auth
+- [ ] Add helper function in lib/quiz-service.ts to ensure anonymous sign-in
+- [ ] Modify createRoom to call the helper before Firestore operations
+- [ ] Modify joinRoom to call the helper before Firestore operations
