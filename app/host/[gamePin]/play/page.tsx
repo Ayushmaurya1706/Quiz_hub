@@ -2,10 +2,13 @@
 
 import { useEffect, useState, use } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { onRoomChange, onParticipantsChange, nextQuestion, type Room, type Participant } from "@/lib/quiz-service"
+import { onRoomChange, onParticipantsChange, nextQuestion, endQuestion, kickParticipant, type Room, type Participant } from "@/lib/quiz-service"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
+import { doc, updateDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase"
 
 const answerColors = ["text-red-600", "text-blue-600", "text-yellow-600", "text-green-600"]
 const answerBgColors = ["bg-red-100", "bg-blue-100", "bg-yellow-100", "bg-green-100"]
@@ -37,12 +40,50 @@ export default function AdminQuizDisplayPage({ params }: { params: Promise<{ gam
     }
   }, [roomId])
 
+  // Global timer countdown for host
+  const [globalTimeLeft, setGlobalTimeLeft] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!room || room.quiz.status !== "quiz_started" || !room.quiz.quizStartTime || !room.quiz.quizDuration) return
+
+    const startTime = room.quiz.quizStartTime.seconds * 1000
+    const durationMs = room.quiz.quizDuration * 60 * 1000
+    const endTime = startTime + durationMs
+
+    const updateTimer = () => {
+      const now = Date.now()
+      const timeLeft = Math.max(0, Math.ceil((endTime - now) / 1000))
+      setGlobalTimeLeft(timeLeft)
+
+      if (timeLeft <= 0) {
+        // Quiz should end automatically via Firebase rules or manual end
+        // For now, just update local state
+      }
+    }
+
+    updateTimer()
+    const timer = setInterval(updateTimer, 1000)
+
+    return () => clearInterval(timer)
+  }, [room?.quiz.status, room?.quiz.quizStartTime, room?.quiz.quizDuration])
+
   const handleNextQuestion = async () => {
     if (!room) return
     try {
       await nextQuestion(room.id)
     } catch (error) {
       console.error("Failed to go to next question:", error)
+    }
+  }
+
+  const handleKickParticipant = async (participantId: string) => {
+    if (!room) return
+    try {
+      await kickParticipant(room.id, participantId)
+      toast.success("Participant removed")
+    } catch (error) {
+      console.error("Failed to kick participant:", error)
+      toast.error("Failed to remove participant")
     }
   }
 
@@ -127,24 +168,20 @@ export default function AdminQuizDisplayPage({ params }: { params: Promise<{ gam
                 </h2>
               </Card>
 
-        {/* Answer Options with Response Count */}
+        {/* Answer Options with Response Count - No correct answers shown */}
         <div className="grid grid-cols-2 gap-6 mb-8">
           {currentQuestion.options.map((option, index) => {
             const percentage =
               totalAnswered > 0 ? Math.round((answerCounts[index] / totalAnswered) * 100) : 0
-            const isCorrect = index === currentQuestion.correctOptionIndex
             return (
               <Card
                 key={index}
-                className={`p-8 rounded-2xl shadow-lg transition-all ${
-                  isCorrect ? "bg-green-100 border-4 border-green-500" : "bg-gray-100"
-                }`}
+                className="p-8 rounded-2xl shadow-lg bg-gray-100"
               >
                 <div className="flex items-center justify-between mb-4">
                   <span className={`text-5xl font-black ${answerColors[index]}`}>
                     {String.fromCharCode(65 + index)}
                   </span>
-                  {isCorrect && <Badge className="bg-green-500 text-white text-lg">CORRECT</Badge>}
                 </div>
                 <p className="text-2xl font-bold text-gray-800 mb-6">{option}</p>
                 <div className="w-full bg-gray-300 rounded-full h-8 overflow-hidden">
@@ -161,7 +198,31 @@ export default function AdminQuizDisplayPage({ params }: { params: Promise<{ gam
           })}
         </div>
 
-        {/* Next Question Button */}
+        {/* Participants List with Kick Option */}
+        <div className="mb-8">
+          <h3 className="text-2xl font-black text-white mb-4">Participants ({participants.length})</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {participants.map((p) => (
+              <Card key={p.id} className="p-4 bg-white rounded-xl shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-lg font-bold text-purple-800">{p.name}</p>
+                    <p className="text-sm text-gray-600">Answered: {p.answers[room.quiz.currentQuestionIndex] ? "Yes" : "No"}</p>
+                  </div>
+                  <Button
+                    onClick={() => handleKickParticipant(p.id)}
+                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded-lg"
+                  >
+                    Kick
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Next Question Button - Hidden for auto flow, but kept in code if needed for manual override */}
+        {/* 
         {(room.quiz.status === "question_ended" || room.quiz.status === "question_active") && (
           <div className="flex justify-center">
             <Button
@@ -170,6 +231,42 @@ export default function AdminQuizDisplayPage({ params }: { params: Promise<{ gam
             >
               NEXT QUESTION
             </Button>
+          </div>
+        )} 
+        */}
+        
+        {/* Manual Quiz End Button */}
+        <div className="flex justify-center gap-4 mt-8">
+          <Button
+            onClick={async () => {
+              if (!room) return
+              try {
+                // End quiz manually
+                await updateDoc(doc(db, "rooms", room.id), {
+                  "quiz.status": "quiz_ended"
+                })
+                toast.success("Quiz ended!")
+              } catch (error) {
+                console.error("Failed to end quiz:", error)
+                toast.error("Failed to end quiz")
+              }
+            }}
+            className="bg-red-500 hover:bg-red-600 text-white font-black text-xl px-8 py-4 rounded-2xl"
+          >
+            END QUIZ NOW
+          </Button>
+        </div>
+
+        {/* Global Timer Display */}
+        {globalTimeLeft !== null && (
+          <div className="flex justify-center mt-4">
+            <div className={`text-2xl font-black px-6 py-3 rounded-xl ${
+              globalTimeLeft <= 300 ? "bg-red-500 text-white animate-pulse" :
+              globalTimeLeft <= 600 ? "bg-yellow-400 text-purple-900" :
+              "bg-lime-400 text-purple-900"
+            }`}>
+              Time Left: {Math.floor(globalTimeLeft / 60)}:{(globalTimeLeft % 60).toString().padStart(2, '0')}
+            </div>
           </div>
         )}
       </div>

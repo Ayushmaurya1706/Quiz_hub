@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { X, Plus } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 interface QuestionForm extends Omit<Question, 'id'> {
   tempId: string
@@ -19,6 +20,9 @@ export default function HostPage() {
   const [adminId, setAdminId] = useState<string | null>(null)
   const [questions, setQuestions] = useState<QuestionForm[]>([])
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [password, setPassword] = useState("")
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
+  const [isPasswordVerified, setIsPasswordVerified] = useState(false)
 
   useEffect(() => {
     const stored = localStorage.getItem("adminId")
@@ -28,6 +32,24 @@ export default function HostPage() {
       const newAdminId = generateId()
       localStorage.setItem("adminId", newAdminId)
       setAdminId(newAdminId)
+    }
+
+    // Load saved questions from localStorage
+    const savedQuestions = localStorage.getItem("savedQuestions")
+    if (savedQuestions) {
+      try {
+        const parsedQuestions = JSON.parse(savedQuestions)
+        if (Array.isArray(parsedQuestions) && parsedQuestions.length > 0) {
+          setQuestions(parsedQuestions.map(q => ({
+            ...q,
+            tempId: generateId() // Generate new tempId for loaded questions
+          })))
+          toast.success("Previous questions loaded successfully")
+        }
+      } catch (error) {
+        console.error("Failed to load saved questions:", error)
+        toast.error("Failed to load previous questions")
+      }
     }
   }, [])
 
@@ -58,6 +80,22 @@ export default function HostPage() {
   const removeQuestion = (index: number) => {
     setQuestions(questions.filter((_, i) => i !== index))
     if (editingIndex === index) setEditingIndex(null)
+  }
+
+  const handleHostQuiz = () => {
+    setIsPasswordDialogOpen(true)
+  }
+
+  const handlePasswordSubmit = () => {
+    // Use environment variable for password, fallback to a default if not set
+    const correctPassword = process.env.NEXT_PUBLIC_HOST_PASSWORD || "Ayush@789"
+    if (password === correctPassword) {
+      setIsPasswordVerified(true)
+      setIsPasswordDialogOpen(false)
+      toast.success("Password verified")
+    } else {
+      toast.error("Incorrect password")
+    }
   }
 
   const handleCreateRoom = async () => {
@@ -96,7 +134,7 @@ export default function HostPage() {
 
       const room = await createRoom(adminId, formattedQuestions)
       console.log("Room created successfully:", room)
-      
+
       // Save to recent quizzes
       const recentQuizzes = JSON.parse(localStorage.getItem("recentQuizzes") || "[]")
       const newQuiz = {
@@ -112,7 +150,7 @@ export default function HostPage() {
         recentQuizzes.pop()
       }
       localStorage.setItem("recentQuizzes", JSON.stringify(recentQuizzes))
-      
+
       toast.success(`Room created! Code: ${room.code}`)
       sessionStorage.setItem("roomId", room.id)
       router.push(`/host/${room.code}`)
@@ -272,13 +310,51 @@ export default function HostPage() {
 
         {questions.length > 0 && editingIndex === null && (
           <div className="flex justify-center gap-4">
-            <Button
-              onClick={handleCreateRoom}
-              disabled={loading}
-              className="h-16 text-2xl font-black bg-lime-400 hover:bg-lime-500 text-purple-900 rounded-2xl px-16 shadow-xl"
-            >
-              {loading ? "Creating..." : `CREATE ROOM (${questions.length} Questions)`}
-            </Button>
+            {!isPasswordVerified ? (
+              <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={handleHostQuiz}
+                    className="h-16 text-2xl font-black bg-lime-400 hover:bg-lime-500 text-purple-900 rounded-2xl px-16 shadow-xl"
+                  >
+                    HOST QUIZ
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-center text-2xl font-black text-purple-600">
+                      Host Password Required
+                    </DialogTitle>
+                    <DialogDescription className="text-center text-gray-600">
+                      Please enter the host password to create a quiz room.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={(e) => { e.preventDefault(); handlePasswordSubmit(); }} className="space-y-4">
+                    <Input
+                      type="password"
+                      placeholder="Enter host password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="text-lg p-4 rounded-xl border-2 border-purple-200"
+                    />
+                    <Button
+                      type="submit"
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black text-lg py-4 rounded-xl"
+                    >
+                      Verify Password
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            ) : (
+              <Button
+                onClick={handleCreateRoom}
+                disabled={loading}
+                className="h-16 text-2xl font-black bg-lime-400 hover:bg-lime-500 text-purple-900 rounded-2xl px-16 shadow-xl"
+              >
+                {loading ? "Creating..." : `CREATE ROOM (${questions.length} Questions)`}
+              </Button>
+            )}
           </div>
         )}
       </div>

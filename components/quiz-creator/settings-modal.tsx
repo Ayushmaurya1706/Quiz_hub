@@ -5,7 +5,16 @@ import { X, Clock, Award, ListOrdered, Shuffle, Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import type { QuizSettings } from "@/app/page"
+interface QuizSettings {
+  title: string
+  description: string
+  timeLimit: number
+  randomizeQuestions: boolean
+  showResults: boolean
+  scoringMode: string
+  showLeaderboard: boolean
+  randomizeAnswers: boolean
+}
 import { cn } from "@/lib/utils"
 
 interface SettingsModalProps {

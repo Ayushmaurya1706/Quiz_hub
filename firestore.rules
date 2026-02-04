@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Rooms collection
+    match /rooms/{roomId} {
+      // Allow read for anyone (to check if room exists and get quiz data)
+      allow read: if true;
+
+    // Allow create for anyone (hosts only)
+      allow create: if true;
+
+      // Allow update only if authenticated and user is the admin
+      allow update: if request.auth != null &&
+        request.auth.uid == resource.data.adminId;
+
+      // Allow delete only if authenticated and user is the admin
+      allow delete: if request.auth != null &&
+        request.auth.uid == resource.data.adminId;
+
+      // Participants subcollection
+      match /participants/{participantId} {
+        // Allow read for anyone (to get participant list)
+        allow read: if true;
+
+        // Allow create for anyone (for joining)
+        allow create: if true;
+
+        // Allow update for anyone (participants can update their own answers)
+        allow update: if true;
+
+        // Allow delete only if authenticated and user is room admin
+        allow delete: if request.auth != null &&
+          request.auth.uid == get(/databases/$(database)/documents/rooms/$(roomId)).data.adminId;
+      }
+    }
+  }
+}

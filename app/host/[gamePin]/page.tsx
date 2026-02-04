@@ -6,6 +6,7 @@ import { onRoomChange, onParticipantsChange, startQuiz, nextQuestion, type Room,
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Copy, Check } from "lucide-react"
 import { toast } from "sonner"
 
@@ -17,24 +18,34 @@ export default function AdminRoomPage({ params }: { params: Promise<{ gamePin: s
   const [participants, setParticipants] = useState<Participant[]>([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [quizDuration, setQuizDuration] = useState("10")
 
   const roomId = typeof window !== "undefined" ? sessionStorage.getItem("roomId") : null
 
   // Redirect to quiz display if quiz is in progress
   useEffect(() => {
-    if (room && (room.quiz.status === "question_active" || room.quiz.status === "question_ended")) {
+    if (room && (room.quiz.status === "quiz_started" || room.quiz.status === "question_active" || room.quiz.status === "question_ended")) {
       router.push(`/host/${gamePin}/play`)
     }
   }, [room?.quiz.status, gamePin, router])
 
   useEffect(() => {
+    console.log("AdminRoomPage useEffect running, roomId:", roomId)
     if (!roomId) {
+      console.log("No roomId, setting loading to false")
       setLoading(false)
       return
     }
 
-    const unsubRoom = onRoomChange(roomId, setRoom)
-    const unsubParticipants = onParticipantsChange(roomId, setParticipants)
+    console.log("Setting up listeners for roomId:", roomId)
+    const unsubRoom = onRoomChange(roomId, (room) => {
+      console.log("Room callback fired, room:", room)
+      setRoom(room)
+    })
+    const unsubParticipants = onParticipantsChange(roomId, (participants) => {
+      console.log("Participants callback fired, participants:", participants)
+      setParticipants(participants)
+    })
 
     setLoading(false)
 
@@ -55,7 +66,7 @@ export default function AdminRoomPage({ params }: { params: Promise<{ gamePin: s
   const handleStartQuiz = async () => {
     if (!room) return
     try {
-      await startQuiz(room.id)
+      await startQuiz(room.id, parseInt(quizDuration))
       toast.success("Quiz started!")
       router.push(`/host/${gamePin}/play`)
     } catch (error) {
@@ -145,7 +156,7 @@ export default function AdminRoomPage({ params }: { params: Promise<{ gamePin: s
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-5xl font-black text-white mb-4">LiveQuiz Hub HOST</h1>
+                    <h1 className="text-5xl font-black text-white mb-4">KAHOOT! HOST</h1>
           <p className="text-xl text-lime-400 font-bold">Room: {room.code}</p>
         </div>
 
@@ -214,9 +225,24 @@ export default function AdminRoomPage({ params }: { params: Promise<{ gamePin: s
           </div>
         </Card>
 
-        {/* Controls */}
+      </div>
         {room.quiz.status === "waiting" && (
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center gap-6">
+            {/* Duration Selector */}
+            <Card className="p-6 bg-white rounded-2xl shadow-lg">
+              <h3 className="text-xl font-black text-purple-600 mb-4 text-center">QUIZ DURATION</h3>
+              <Select value={quizDuration} onValueChange={setQuizDuration}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Select duration" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 minutes</SelectItem>
+                  <SelectItem value="15">15 minutes</SelectItem>
+                  <SelectItem value="20">20 minutes</SelectItem>
+                </SelectContent>
+              </Select>
+            </Card>
+
             <Button
               onClick={handleStartQuiz}
               className="h-16 text-2xl font-black bg-lime-400 hover:bg-lime-500 text-purple-900 rounded-2xl px-12 shadow-xl"
@@ -225,7 +251,6 @@ export default function AdminRoomPage({ params }: { params: Promise<{ gamePin: s
             </Button>
           </div>
         )}
-      </div>
     </div>
   )
 }

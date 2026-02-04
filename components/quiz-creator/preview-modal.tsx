@@ -2,11 +2,23 @@
 
 import { X, ChevronLeft, ChevronRight, Triangle, Diamond, Circle, Square, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { Question } from "@/app/page"
+import type { Question } from "@/lib/quiz-service"
 import { cn } from "@/lib/utils"
 
+interface QuizCreatorQuestion {
+  id: string
+  question: string
+  answers: Array<{
+    id: string
+    text: string
+    isCorrect: boolean
+  }>
+  timeLimit: number
+  basePoints: number
+}
+
 interface PreviewModalProps {
-  question: Question
+  question: QuizCreatorQuestion
   questionNumber: number
   totalQuestions: number
   onClose: () => void

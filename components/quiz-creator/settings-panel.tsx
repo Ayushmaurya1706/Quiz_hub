@@ -1,20 +1,33 @@
-"use client"
+ "use client"
 
 import { Clock, Award, HelpCircle, ToggleLeft, Coins } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import type { Question } from "@/app/page"
+interface QuizCreatorQuestion {
+  id: string
+  question: string
+  answers: Array<{
+    id: string
+    text: string
+    isCorrect: boolean
+  }>
+  timeLimit: number
+  basePoints: number
+  type: string
+  correctOptionIndex: number
+  pointsMode: string
+}
 import { cn } from "@/lib/utils"
 
 interface SettingsPanelProps {
-  question: Question
+  question: QuizCreatorQuestion
   onTimeLimitChange: (time: number) => void
-  onPointsModeChange: (mode: Question["pointsMode"]) => void
+  onPointsModeChange: (mode: string) => void
   onBasePointsChange: (points: number) => void
-  onTypeChange: (type: Question["type"]) => void
+  onTypeChange: (type: string) => void
 }
 
-const questionTypes: { type: Question["type"]; label: string; icon: string }[] = [
+const questionTypes: { type: string; label: string; icon: string }[] = [
   { type: "quiz", label: "Quiz", icon: "?" },
   { type: "truefalse", label: "True or false", icon: "T/F" },
   { type: "poll", label: "Poll", icon: "P" },
@@ -24,7 +37,7 @@ const questionTypes: { type: Question["type"]; label: string; icon: string }[] =
 
 const timeLimits = [5, 10, 20, 30, 60, 90, 120, 240]
 
-const pointsModeOptions: { value: Question["pointsMode"]; label: string; description: string }[] = [
+const pointsModeOptions: { value: string; label: string; description: string }[] = [
   { value: "standard", label: "Standard", description: "1000 base points" },
   { value: "double", label: "Double points", description: "2000 base points" },
   { value: "none", label: "No points", description: "0 points" },
@@ -38,7 +51,7 @@ export function SettingsPanel({
   onTypeChange,
 }: SettingsPanelProps) {
   
-  const handlePointsModeChange = (mode: Question["pointsMode"]) => {
+  const handlePointsModeChange = (mode: string) => {
     onPointsModeChange(mode)
     // Auto-set base points based on mode
     switch (mode) {

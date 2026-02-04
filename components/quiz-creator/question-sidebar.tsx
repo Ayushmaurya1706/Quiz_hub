@@ -2,20 +2,32 @@
 
 import { Plus, Copy, Trash2, GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { Question } from "@/app/page"
 import { cn } from "@/lib/utils"
 
+interface QuizCreatorQuestion {
+  id: string
+  question: string
+  answers: Array<{
+    id: string
+    text: string
+    isCorrect: boolean
+  }>
+  timeLimit: number
+  basePoints: number
+  type: string
+}
+
 interface QuestionSidebarProps {
-  questions: Question[]
+  questions: QuizCreatorQuestion[]
   selectedIndex: number
   onSelect: (index: number) => void
-  onAdd: (type?: Question["type"]) => void
+  onAdd: (type?: string) => void
   onDuplicate: (index: number) => void
   onDelete: (index: number) => void
   onReorder: (fromIndex: number, toIndex: number) => void
 }
 
-const questionTypeIcons: Record<Question["type"], string> = {
+const questionTypeIcons: Record<string, string> = {
   quiz: "Quiz",
   truefalse: "T/F",
   poll: "Poll",
@@ -61,7 +73,7 @@ export function QuestionSidebar({
                     {question.question || "Click to add question"}
                   </p>
                   <div className="mt-1 flex gap-1">
-                    {question.answers.slice(0, 4).map((answer, i) => {
+                    {question.answers.slice(0, 4).map((answer: { id: string; text: string; isCorrect: boolean }, i: number) => {
                       const colors = ["bg-[var(--kahoot-red)]", "bg-[var(--kahoot-blue)]", "bg-[var(--kahoot-yellow)]", "bg-[var(--kahoot-green)]"]
                       return (
                         <div

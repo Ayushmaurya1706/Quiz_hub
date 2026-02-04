@@ -5,6 +5,7 @@ import {
   setDoc,
   getDoc,
   updateDoc,
+  deleteDoc,
   onSnapshot,
   serverTimestamp,
   query,
@@ -31,6 +32,9 @@ export interface QuizData {
   status: "waiting" | "quiz_started" | "question_active" | "question_ended" | "quiz_ended"
   questionStartTime: Timestamp | null
   questionEndTime: Timestamp | null
+  // Global quiz timer fields
+  quizStartTime: Timestamp | null
+  quizDuration: number | null // in minutes
 }
 
 export interface Room {
@@ -51,6 +55,7 @@ export interface Participant {
   joinedAt: Timestamp
   answers: Record<string, { optionIndex: number; submittedAt: Timestamp; isCorrect: boolean }>
   totalScore: number
+  status: "active" | "removed" // New field for kick feature
 }
 
 export interface AdminDashboardRow {
@@ -86,6 +91,8 @@ export async function createRoom(
     status: "waiting",
     questionStartTime: null,
     questionEndTime: null,
+    quizStartTime: null,
+    quizDuration: null,
   }
 
   const room: Room = {
@@ -168,6 +175,7 @@ export async function joinRoom(
       joinedAt: serverTimestamp() as Timestamp,
       answers: {},
       totalScore: 0,
+      status: "active", // New field for kick feature
     }
 
     await setDoc(participantRef, {
@@ -194,13 +202,12 @@ export async function joinRoom(
   }
 }
 
-// Submit an answer for a question
+// Submit an answer for a question (allows updates)
 export async function submitAnswer(
   roomId: string,
   participantId: string,
   questionIndex: number,
-  optionIndex: number,
-  questionStartTime: Timestamp
+  optionIndex: number
 ): Promise<boolean> {
   // Locate the participant document in the specific room's participants subcollection
   const participantRef = doc(db, "rooms", roomId, "participants", participantId)
@@ -211,11 +218,6 @@ export async function submitAnswer(
 
   const participant = participantDoc.data() as Participant
 
-  // Check if already answered
-  if (participant.answers[questionIndex.toString()]) {
-    throw new Error("Already answered this question")
-  }
-
   // Get room and question
   const roomDoc = await getDoc(doc(db, "rooms", roomId))
   if (!roomDoc.exists()) throw new Error("Room not found")
@@ -224,12 +226,19 @@ export async function submitAnswer(
   const question = room.quiz.questions[questionIndex]
   const isCorrect = optionIndex === question.correctOptionIndex
 
-  // Calculate score
+  // Calculate score (base points only)
   const submittedAt = serverTimestamp() as Timestamp
-  const timeTakenSeconds = Date.now() / 1000 - questionStartTime.seconds
   const basePoints = question.basePoints
-  const bonusPoints = Math.max(0, 30 - Math.round(timeTakenSeconds))
-  const points = isCorrect ? basePoints + bonusPoints : 0
+  const points = isCorrect ? basePoints : 0
+
+  // Check if previously answered to adjust score
+  const previousAnswer = participant.answers[questionIndex.toString()]
+  let scoreAdjustment = points
+  if (previousAnswer) {
+    // Subtract previous points if changing answer
+    const previousPoints = previousAnswer.isCorrect ? basePoints : 0
+    scoreAdjustment = points - previousPoints
+  }
 
   // Update participant
   await updateDoc(participantRef, {
@@ -238,23 +247,22 @@ export async function submitAnswer(
       submittedAt,
       isCorrect,
     },
-    totalScore: participant.totalScore + points,
+    totalScore: participant.totalScore + scoreAdjustment,
   })
 
   return isCorrect
 }
 
 // Start the quiz (admin only)
-export async function startQuiz(roomId: string): Promise<void> {
+export async function startQuiz(roomId: string, durationMinutes: number): Promise<void> {
   const roomRef = doc(db, "rooms", roomId)
 
   await updateDoc(roomRef, {
     "quiz.status": "quiz_started",
     "quiz.currentQuestionIndex": 0,
+    "quiz.quizStartTime": serverTimestamp(),
+    "quiz.quizDuration": durationMinutes,
   })
-
-  // Start first question
-  await startQuestion(roomId, 0)
 }
 
 // Start a specific question (admin only)
@@ -270,6 +278,14 @@ export async function startQuestion(roomId: string, questionIndex: number): Prom
     "quiz.currentQuestionIndex": questionIndex,
     "quiz.questionStartTime": serverTimestamp(),
     "quiz.questionEndTime": endTime,
+  })
+}
+
+// End the current question (admin only)
+export async function endQuestion(roomId: string): Promise<void> {
+  const roomRef = doc(db, "rooms", roomId)
+  await updateDoc(roomRef, {
+    "quiz.status": "question_ended",
   })
 }
 
@@ -352,6 +368,36 @@ export async function getAdminDashboard(roomId: string): Promise<AdminDashboardR
       totalScore: participant.totalScore,
     }
   })
+}
+
+// Kick a participant (admin only)
+export async function kickParticipant(roomId: string, participantId: string): Promise<void> {
+  const participantRef = doc(db, "rooms", roomId, "participants", participantId)
+  await updateDoc(participantRef, {
+    status: "removed"
+  })
+}
+
+// End quiz globally (called when timer expires)
+export async function endQuiz(roomId: string): Promise<void> {
+  const roomRef = doc(db, "rooms", roomId)
+  await updateDoc(roomRef, {
+    "quiz.status": "quiz_ended",
+  })
+}
+
+// Leave a room (participant only) - does not delete participant data
+export async function leaveRoom(roomId: string, participantId: string): Promise<void> {
+  // Decrement playerCount on the room document only
+  try {
+    await updateDoc(doc(db, "rooms", roomId), {
+      playerCount: increment(-1),
+    })
+    console.log("Room playerCount decremented")
+  } catch (err) {
+    // Non-fatal: if decrement fails, continue. It just means playerCount may be stale.
+    console.warn("Failed to decrement playerCount:", err)
+  }
 }
 
 // Delete a room (admin only)

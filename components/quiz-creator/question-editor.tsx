@@ -3,11 +3,29 @@
 import { ImagePlus, Check, Triangle, Diamond, Circle, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import type { Question, Answer } from "@/app/page"
+interface QuizCreatorQuestion {
+  id: string
+  question: string
+  answers: Array<{
+    id: string
+    text: string
+    isCorrect: boolean
+  }>
+  timeLimit: number
+  basePoints: number
+  type: string
+  correctOptionIndex: number
+}
+
+interface Answer {
+  id: string
+  text: string
+  isCorrect: boolean
+}
 import { cn } from "@/lib/utils"
 
 interface QuestionEditorProps {
-  question: Question
+  question: QuizCreatorQuestion
   questionNumber: number
   onQuestionChange: (text: string) => void
   onAnswerChange: (answerId: string, updates: Partial<Answer>) => void
