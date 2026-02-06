@@ -6,8 +6,6 @@ import { onRoomChange, onParticipantChange, submitAnswer, endQuiz, leaveRoom, ty
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { toast } from "sonner"
-import { doc, updateDoc } from "firebase/firestore"
-import { db } from "@/lib/firebase"
 import { Check, LogOut, ArrowLeft } from "lucide-react"
 
 // Kahoot answer colors
@@ -21,6 +19,7 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
   const [loading, setLoading] = useState(true)
   const [selectedOption, setSelectedOption] = useState<number | null>(null)
   const [globalTimeLeft, setGlobalTimeLeft] = useState<number | null>(null)
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
  
   const participantId = typeof window !== "undefined" ? sessionStorage.getItem("participantId") : null
   const roomId = typeof window !== "undefined" ? sessionStorage.getItem("roomId") : null
@@ -64,10 +63,10 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
   // Reset answer state when question changes
   useEffect(() => {
     if (participant && room) {
-      const answer = participant.answers[room.quiz.currentQuestionIndex.toString()]
+      const answer = participant.answers[currentQuestionIndex.toString()]
       setSelectedOption(answer ? answer.optionIndex : null)
     }
-  }, [room?.quiz.currentQuestionIndex, participant])
+  }, [currentQuestionIndex, participant])
 
   // Global timer countdown
   useEffect(() => {
@@ -83,7 +82,9 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
       setGlobalTimeLeft(timeLeft)
 
       if (timeLeft <= 0 && room.quiz.status !== "quiz_ended") {
-        // End the quiz when timer expires
+        // Auto-submit when timer expires - redirect to home (same as Submit Quiz button)
+        window.location.href = "/"
+        // End the quiz globally for the host
         endQuiz(room.id).catch(console.error)
       }
     }
@@ -105,7 +106,7 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
       await submitAnswer(
         roomId,
         participant.id,
-        room.quiz.currentQuestionIndex,
+        currentQuestionIndex,
         optionIndex
       )
 
@@ -150,8 +151,8 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
     )
   }
 
-  const currentQuestion = room.quiz.questions[room.quiz.currentQuestionIndex]
-  console.log("Current question index:", room.quiz.currentQuestionIndex, "Questions length:", room.quiz.questions.length, "Current question:", currentQuestion)
+  const currentQuestion = room.quiz.questions[currentQuestionIndex]
+  console.log("Current question index:", currentQuestionIndex, "Questions length:", room.quiz.questions.length, "Current question:", currentQuestion)
 
   // Waiting for quiz to start
   if (room.quiz.status === "waiting") {
@@ -217,19 +218,17 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
 
     return (
       <div className="flex flex-col min-h-screen bg-gradient-to-br from-purple-600 to-purple-800 p-6">
-        {/* Leave Room Button - Fixed top-right, visible after completing all questions */}
-        {hasCompletedAllQuestions && (
-          <Button
-            onClick={handleLeaveRoom}
-            className="fixed top-4 right-4 z-50 bg-red-500 hover:bg-red-600 text-white font-black px-4 py-2 rounded-lg shadow-lg"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Leave Room
-          </Button>
-        )}
+        {/* Submit Quiz Button - Fixed top-right, always visible */}
+        <Button
+          onClick={handleLeaveRoom}
+          className="fixed top-4 right-4 z-50 bg-red-500 hover:bg-red-600 text-white font-black px-4 py-2 rounded-lg shadow-lg"
+        >
+          <LogOut className="h-4 w-4 mr-2" />
+          Submit Quiz
+        </Button>
         {/* Header */}
         <div className="flex justify-between items-center mb-8 max-w-5xl mx-auto w-full">
-          <div className="text-white font-black text-xl">Q{room.quiz.currentQuestionIndex + 1}/{room.quiz.questions.length}</div>
+          <div className="text-white font-black text-xl">Q{currentQuestionIndex + 1}/{room.quiz.questions.length}</div>
           <div className={`text-4xl font-black px-6 py-3 rounded-full transition-all ${
             globalTimeLeft && globalTimeLeft <= 300 ? "bg-red-500 text-white animate-pulse" :
             globalTimeLeft && globalTimeLeft <= 600 ? "bg-yellow-400 text-purple-900" :
@@ -243,37 +242,19 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
         {/* Navigation Buttons */}
         <div className="flex justify-center gap-4 mb-8 max-w-5xl mx-auto w-full">
           <Button
-            onClick={async () => {
-              const newIndex = Math.max(0, room.quiz.currentQuestionIndex - 1)
-              try {
-                // Update question index in database
-                await updateDoc(doc(db, "rooms", roomId!), {
-                  "quiz.currentQuestionIndex": newIndex
-                })
-              } catch (error) {
-                console.error("Failed to navigate to previous question:", error)
-                toast.error("Failed to navigate")
-              }
+            onClick={() => {
+              setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))
             }}
-            disabled={room.quiz.currentQuestionIndex === 0}
+            disabled={currentQuestionIndex === 0}
             className="bg-white/20 hover:bg-white/30 text-white font-black px-6 py-2"
           >
             ← Previous
           </Button>
           <Button
-            onClick={async () => {
-              const newIndex = Math.min(room.quiz.questions.length - 1, room.quiz.currentQuestionIndex + 1)
-              try {
-                // Update question index in database
-                await updateDoc(doc(db, "rooms", roomId!), {
-                  "quiz.currentQuestionIndex": newIndex
-                })
-              } catch (error) {
-                console.error("Failed to navigate to next question:", error)
-                toast.error("Failed to navigate")
-              }
+            onClick={() => {
+              setCurrentQuestionIndex(Math.min(room.quiz.questions.length - 1, currentQuestionIndex + 1))
             }}
-            disabled={room.quiz.currentQuestionIndex === room.quiz.questions.length - 1}
+            disabled={currentQuestionIndex === room.quiz.questions.length - 1}
             className="bg-white/20 hover:bg-white/30 text-white font-black px-6 py-2"
           >
             Next →
