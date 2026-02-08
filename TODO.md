@@ -1,9 +1,16 @@
-# TODO List
+# COMPLETED: Tab-Switch Monitoring Feature
 
-## Current Tasks
-- [x] Fix DialogContent accessibility warning by adding DialogDescription in app/host/page.tsx
-- [x] Fix password field DOM warning by wrapping input in form element in app/host/page.tsx
+## Summary
+Successfully implemented a frontend-only tab-switch monitoring feature for quiz participants.
 
-## New Tasks
-- [x] Design and implement a leave page for the join room page (likely in app/play/[gamePin]/page.tsx or similar)
-- [x] Create local storage functionality to store previous questions for easy recovery in app/host/page.tsx
+## Features Implemented
+- ✅ Tab switch detection using `document.visibilitychange` during active quiz phases
+- ✅ Warning modal on first tab switch with clear message
+- ✅ Automatic removal on second tab switch with redirect to removal screen
+- ✅ Removed participants cannot continue the quiz (only "GO HOME" option)
+- ✅ Session-based counter (resets on page reload)
+- ✅ No backend impact, host unaffected, no database changes
+
+## Files Modified
+- `app/play/[gamePin]/page.tsx`: Added monitoring logic and warning modal
+- `app/play/[gamePin]/leave/page.tsx`: Updated to handle removal notifications and prevent continuation

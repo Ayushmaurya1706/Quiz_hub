@@ -53,9 +53,12 @@ export interface Participant {
   sessionId: string
   createdByUid: string
   joinedAt: Timestamp
-  answers: Record<string, { optionIndex: number; submittedAt: Timestamp; isCorrect: boolean }>
+  answers: Record<string, { optionIndex: number; submittedAt: Timestamp; isCorrect: boolean; timeTaken: number }>
   totalScore: number
   status: "active" | "removed" // New field for kick feature
+  quizStartedAt: Timestamp | null
+  quizFinishedAt: Timestamp | null
+  totalQuizTime: number | null // in seconds
 }
 
 export interface AdminDashboardRow {
@@ -176,6 +179,9 @@ export async function joinRoom(
       answers: {},
       totalScore: 0,
       status: "active", // New field for kick feature
+      quizStartedAt: null,
+      quizFinishedAt: null,
+      totalQuizTime: null,
     }
 
     await setDoc(participantRef, {
@@ -183,6 +189,15 @@ export async function joinRoom(
       joinedAt: serverTimestamp(),
     })
     console.log("Participant document created in subcollection")
+
+    // If quiz has already started, set the start time
+    const currentRoomDoc = await getDoc(doc(db, "rooms", roomId))
+    const currentRoom = currentRoomDoc.data() as Room
+    if (currentRoom.quiz.status === "quiz_started" && currentRoom.quiz.quizStartTime) {
+      await updateDoc(participantRef, {
+        quizStartedAt: currentRoom.quiz.quizStartTime,
+      })
+    }
 
     // Increment lightweight playerCount on the room document
     try {
@@ -227,9 +242,13 @@ export async function submitAnswer(
   const isCorrect = optionIndex === question.correctOptionIndex
 
   // Calculate score (base points only)
-  const submittedAt = serverTimestamp() as Timestamp
+  const submittedAt = Timestamp.now()
   const basePoints = question.basePoints
   const points = isCorrect ? basePoints : 0
+
+  // Calculate time taken
+  const questionStartTime = room.quiz.questionStartTime
+  const timeTaken = questionStartTime ? Math.floor(((submittedAt.seconds * 1000 + submittedAt.nanoseconds / 1000000) - (questionStartTime.seconds * 1000 + questionStartTime.nanoseconds / 1000000)) / 1000) : 0
 
   // Check if previously answered to adjust score
   const previousAnswer = participant.answers[questionIndex.toString()]
@@ -246,6 +265,7 @@ export async function submitAnswer(
       optionIndex,
       submittedAt,
       isCorrect,
+      timeTaken,
     },
     totalScore: participant.totalScore + scoreAdjustment,
   })
@@ -260,23 +280,33 @@ export async function startQuiz(roomId: string, durationMinutes: number): Promis
   await updateDoc(roomRef, {
     "quiz.status": "quiz_started",
     "quiz.currentQuestionIndex": 0,
-    "quiz.quizStartTime": serverTimestamp(),
+    "quiz.quizStartTime": Timestamp.now(),
     "quiz.quizDuration": durationMinutes,
   })
+
+  // Set quizStartedAt for all active participants
+  const participantsQuery = query(collection(db, "rooms", roomId, "participants"), where("status", "==", "active"))
+  const participantsSnapshot = await getDocs(participantsQuery)
+  const batch = writeBatch(db)
+  participantsSnapshot.docs.forEach((doc) => {
+    batch.update(doc.ref, {
+      quizStartedAt: Timestamp.now(),
+    })
+  })
+  await batch.commit()
 }
 
 // Start a specific question (admin only)
 export async function startQuestion(roomId: string, questionIndex: number): Promise<void> {
   const roomRef = doc(db, "rooms", roomId)
-  // Use server timestamp for the start time, and compute an end time
-  // using the client's clock (30 seconds later) since `serverTimestamp()`
-  // is a sentinel and doesn't expose `seconds`/`nanoseconds` on the client.
+  // Use client timestamp for the start time to enable accurate time calculations
+  const startTime = Timestamp.now()
   const endTime = Timestamp.fromDate(new Date(Date.now() + 30 * 1000))
 
   await updateDoc(roomRef, {
     "quiz.status": "question_active",
     "quiz.currentQuestionIndex": questionIndex,
-    "quiz.questionStartTime": serverTimestamp(),
+    "quiz.questionStartTime": startTime,
     "quiz.questionEndTime": endTime,
   })
 }
@@ -384,10 +414,55 @@ export async function endQuiz(roomId: string): Promise<void> {
   await updateDoc(roomRef, {
     "quiz.status": "quiz_ended",
   })
+
+  // Set quizFinishedAt and totalQuizTime for all active participants who haven't finished yet
+  const participantsQuery = query(collection(db, "rooms", roomId, "participants"), where("status", "==", "active"))
+  const participantsSnapshot = await getDocs(participantsQuery)
+  const batch = writeBatch(db)
+  participantsSnapshot.docs.forEach((doc) => {
+    const participant = doc.data() as Participant
+    if (participant.quizStartedAt && !participant.quizFinishedAt) {
+      const finishedAt = Timestamp.now()
+      const totalTime = Object.values(participant.answers).reduce((sum, answer) => sum + answer.timeTaken, 0)
+      batch.update(doc.ref, {
+        quizFinishedAt: finishedAt,
+        totalQuizTime: totalTime,
+      })
+    }
+  })
+  await batch.commit()
 }
 
 // Leave a room (participant only) - does not delete participant data
 export async function leaveRoom(roomId: string, participantId: string): Promise<void> {
+  console.log("leaveRoom called for participant:", participantId, "in room:", roomId)
+
+  // Set quiz finish time if not already set
+  const participantRef = doc(db, "rooms", roomId, "participants", participantId)
+  const participantDoc = await getDoc(participantRef)
+  if (participantDoc.exists()) {
+    const participant = participantDoc.data() as Participant
+    console.log("Participant data:", participant)
+    console.log("quizStartedAt:", participant.quizStartedAt)
+    console.log("quizFinishedAt:", participant.quizFinishedAt)
+
+    if (participant.quizStartedAt && !participant.quizFinishedAt) {
+      const finishedAt = Timestamp.now()
+      const totalTime = Object.values(participant.answers).reduce((sum, answer) => sum + answer.timeTaken, 0)
+      console.log("Setting totalQuizTime to:", totalTime)
+
+      await updateDoc(participantRef, {
+        quizFinishedAt: finishedAt,
+        totalQuizTime: totalTime,
+      })
+      console.log("Successfully updated participant with finish time")
+    } else {
+      console.log("Participant already has finish time or no start time")
+    }
+  } else {
+    console.log("Participant document not found")
+  }
+
   // Decrement playerCount on the room document only
   try {
     await updateDoc(doc(db, "rooms", roomId), {

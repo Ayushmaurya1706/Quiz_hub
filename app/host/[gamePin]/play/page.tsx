@@ -163,7 +163,7 @@ export default function AdminQuizDisplayPage({ params }: { params: Promise<{ gam
 
         {/* Question Card */}
         <Card className="p-8 bg-white rounded-3xl shadow-2xl mb-8 text-center">
-                <h2 className="text-5xl font-black text-purple-800">
+                <h2 className="text-5xl font-black text-purple-800 whitespace-pre-wrap">
                   {currentQuestion.text}
                 </h2>
               </Card>
@@ -183,7 +183,7 @@ export default function AdminQuizDisplayPage({ params }: { params: Promise<{ gam
                     {String.fromCharCode(65 + index)}
                   </span>
                 </div>
-                <p className="text-2xl font-bold text-gray-800 mb-6">{option}</p>
+                <p className="text-2xl font-bold text-gray-800 mb-6 whitespace-pre-wrap">{option}</p>
                 <div className="w-full bg-gray-300 rounded-full h-8 overflow-hidden">
                   <div
                     className={`h-full ${answerBgColors[index]} transition-all duration-500`}

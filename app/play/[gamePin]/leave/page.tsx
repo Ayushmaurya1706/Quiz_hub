@@ -13,9 +13,18 @@ export default function LeavePage({ params }: { params: Promise<{ gamePin: strin
   const router = useRouter()
   const [isLeaving, setIsLeaving] = useState(false)
   const [participantName, setParticipantName] = useState("")
+  const [isRemoved, setIsRemoved] = useState(false)
 
   const roomId = typeof window !== "undefined" ? sessionStorage.getItem("roomId") : null
   const participantId = typeof window !== "undefined" ? sessionStorage.getItem("participantId") : null
+
+  useEffect(() => {
+    // Check if removed due to tab switching
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('removed') === 'true') {
+      setIsRemoved(true)
+    }
+  }, [])
 
   useEffect(() => {
     // Get participant name from session storage or local storage if available
@@ -86,31 +95,43 @@ export default function LeavePage({ params }: { params: Promise<{ gamePin: strin
         </div>
 
         <div className="space-y-4">
-          <Button
-            onClick={handleLeaveRoom}
-            disabled={isLeaving}
-            className="w-full h-14 text-xl font-black bg-red-500 hover:bg-red-600 text-white rounded-xl transform hover:scale-105 transition-all"
-          >
-            {isLeaving ? "LEAVING..." : "YES, LEAVE QUIZ"}
-          </Button>
+          {isRemoved ? (
+            <Button
+              onClick={handleGoHome}
+              className="w-full h-14 text-xl font-black bg-purple-600 hover:bg-purple-700 text-white rounded-xl transform hover:scale-105 transition-all"
+            >
+              <Home className="h-5 w-5 mr-2" />
+              GO HOME
+            </Button>
+          ) : (
+            <>
+              <Button
+                onClick={handleLeaveRoom}
+                disabled={isLeaving}
+                className="w-full h-14 text-xl font-black bg-red-500 hover:bg-red-600 text-white rounded-xl transform hover:scale-105 transition-all"
+              >
+                {isLeaving ? "LEAVING..." : "YES, LEAVE QUIZ"}
+              </Button>
 
-          <Button
-            onClick={handleGoBack}
-            variant="outline"
-            className="w-full h-14 text-xl font-black border-2 border-purple-300 text-purple-600 hover:bg-purple-50 rounded-xl"
-          >
-            <ArrowLeft className="h-5 w-5 mr-2" />
-            GO BACK TO QUIZ
-          </Button>
+              <Button
+                onClick={handleGoBack}
+                variant="outline"
+                className="w-full h-14 text-xl font-black border-2 border-purple-300 text-purple-600 hover:bg-purple-50 rounded-xl"
+              >
+                <ArrowLeft className="h-5 w-5 mr-2" />
+                GO BACK TO QUIZ
+              </Button>
 
-          <Button
-            onClick={handleGoHome}
-            variant="ghost"
-            className="w-full h-12 text-lg font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-xl"
-          >
-            <Home className="h-5 w-5 mr-2" />
-            GO HOME INSTEAD
-          </Button>
+              <Button
+                onClick={handleGoHome}
+                variant="ghost"
+                className="w-full h-12 text-lg font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-xl"
+              >
+                <Home className="h-5 w-5 mr-2" />
+                GO HOME INSTEAD
+              </Button>
+            </>
+          )}
         </div>
       </Card>
     </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { createRoom, generateId, type Question } from "@/lib/quiz-service"
+import { saveRecentQuiz } from "@/lib/recent-quizzes"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -9,6 +10,8 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { X, Plus } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { QuestionEditor } from "@/components/quiz-creator/question-editor"
+
 
 interface QuestionForm extends Omit<Question, 'id'> {
   tempId: string
@@ -51,6 +54,26 @@ export default function HostPage() {
         toast.error("Failed to load previous questions")
       }
     }
+
+    // Load draft quiz if available
+    const draft = localStorage.getItem('draft_quiz')
+    if (draft) {
+      try {
+        const quiz = JSON.parse(draft)
+        setQuestions(quiz.questions.map((q: any, idx: number) => ({
+          tempId: generateId(),
+          text: q.question,
+          options: q.answers,
+          correctOptionIndex: q.correctAnswer,
+          basePoints: q.points,
+        })))
+        toast.success("Draft quiz loaded successfully")
+        localStorage.removeItem('draft_quiz') // Clear after loading
+      } catch (error) {
+        console.error("Failed to load draft quiz:", error)
+        toast.error("Failed to load draft quiz")
+      }
+    }
   }, [])
 
   const addQuestion = () => {
@@ -81,6 +104,34 @@ export default function HostPage() {
     setQuestions(questions.filter((_, i) => i !== index))
     if (editingIndex === index) setEditingIndex(null)
   }
+
+  // Helper functions to convert between formats for QuestionEditor
+  const convertToEditorQuestion = (q: QuestionForm) => ({
+    id: q.tempId,
+    question: q.text,
+    answers: q.options.map((opt, idx) => ({
+      id: `a${idx}`,
+      text: opt,
+      isCorrect: idx === q.correctOptionIndex
+    })),
+    timeLimit: 20,
+    basePoints: q.basePoints,
+    type: "quiz",
+    correctOptionIndex: q.correctOptionIndex
+  })
+
+  const updateFromEditorQuestion = (index: number, editorQuestion: ReturnType<typeof convertToEditorQuestion>) => {
+    const updated = [...questions]
+    updated[index] = {
+      ...updated[index],
+      text: editorQuestion.question,
+      options: editorQuestion.answers.map(a => a.text),
+      correctOptionIndex: editorQuestion.correctOptionIndex,
+      basePoints: editorQuestion.basePoints
+    }
+    setQuestions(updated)
+  }
+
 
   const handleHostQuiz = () => {
     setIsPasswordDialogOpen(true)
@@ -136,20 +187,19 @@ export default function HostPage() {
       console.log("Room created successfully:", room)
 
       // Save to recent quizzes
-      const recentQuizzes = JSON.parse(localStorage.getItem("recentQuizzes") || "[]")
-      const newQuiz = {
+      saveRecentQuiz({
         id: room.id,
-        code: room.code,
-        name: `Quiz - ${new Date().toLocaleDateString()}`,
-        questions: formattedQuestions.length,
-        createdAt: new Date().toISOString(),
-      }
-      recentQuizzes.unshift(newQuiz)
-      // Keep only last 10 quizzes
-      if (recentQuizzes.length > 10) {
-        recentQuizzes.pop()
-      }
-      localStorage.setItem("recentQuizzes", JSON.stringify(recentQuizzes))
+        title: `Quiz - ${new Date().toLocaleDateString()}`,
+        questions: formattedQuestions.map(q => ({
+          question: q.text,
+          answers: q.options,
+          correctAnswer: q.correctOptionIndex,
+          timeLimit: 20, // Default time limit
+          points: q.basePoints,
+        })),
+        createdAt: Date.now(),
+        gamePin: room.code,
+      })
 
       toast.success(`Room created! Code: ${room.code}`)
       sessionStorage.setItem("roomId", room.id)
@@ -205,66 +255,28 @@ export default function HostPage() {
                 </div>
 
                 {editingIndex === idx ? (
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-purple-600 font-black mb-2">Question Text</label>
-                      <Input
-                        value={q.text}
-                        onChange={(e) => updateQuestion(idx, "text", e.target.value)}
-                        placeholder="Enter question text"
-                        className="text-lg p-4 rounded-xl border-2 border-purple-200"
-                        autoFocus
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-purple-600 font-black mb-3">
-                        Answer Options
-                      </label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {q.options.map((option, optIdx) => (
-                          <div key={optIdx} className="relative">
-                            <Input
-                              value={option}
-                              onChange={(e) => {
-                                const newOptions = [...q.options]
-                                newOptions[optIdx] = e.target.value
-                                updateQuestion(idx, "options", newOptions)
-                              }}
-                              placeholder={`Option ${optIdx + 1}`}
-                              className={`p-4 rounded-xl border-2 pr-16 text-lg ${
-                                q.correctOptionIndex === optIdx
-                                  ? "border-green-500 bg-green-50"
-                                  : "border-gray-200"
-                              }`}
-                            />
-                            <button
-                              onClick={() => updateQuestion(idx, "correctOptionIndex", optIdx)}
-                              className={`absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1 rounded-lg text-sm font-black transition-all ${
-                                q.correctOptionIndex === optIdx
-                                  ? "bg-green-500 text-white"
-                                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                              }`}
-                            >
-                              {q.correctOptionIndex === optIdx ? "✓ Correct" : "Mark"}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-purple-600 font-black mb-2">Base Points</label>
-                      <Input
-                        type="number"
-                        value={q.basePoints}
-                        onChange={(e) => updateQuestion(idx, "basePoints", parseInt(e.target.value))}
-                        className="text-lg p-4 rounded-xl border-2 border-purple-200"
-                        min="10"
-                        max="1000"
-                      />
-                    </div>
-
+                  <div className="space-y-4">
+                    <QuestionEditor
+                      question={convertToEditorQuestion(q)}
+                      questionNumber={idx + 1}
+                      onQuestionChange={(text) => updateQuestion(idx, "text", text)}
+                      onAnswerChange={(answerId, updates) => {
+                        const answerIndex = parseInt(answerId.replace('a', ''))
+                        if (updates.text !== undefined) {
+                          const newOptions = [...q.options]
+                          newOptions[answerIndex] = updates.text
+                          updateQuestion(idx, "options", newOptions)
+                        }
+                      }}
+                      onToggleCorrect={(answerId) => {
+                        const answerIndex = parseInt(answerId.replace('a', ''))
+                        updateQuestion(idx, "correctOptionIndex", answerIndex)
+                      }}
+                      onSetCorrectByIndex={(index) => {
+                        updateQuestion(idx, "correctOptionIndex", index)
+                      }}
+                      onBasePointsChange={(points) => updateQuestion(idx, "basePoints", points)}
+                    />
                     <Button
                       onClick={() => setEditingIndex(null)}
                       className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black text-lg py-4 rounded-xl"
@@ -273,6 +285,7 @@ export default function HostPage() {
                     </Button>
                   </div>
                 ) : (
+
                   <div className="space-y-4">
                     <p className="text-xl font-bold text-gray-800">{q.text || "Untitled question"}</p>
                     <div className="grid grid-cols-2 gap-2">

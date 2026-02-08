@@ -72,7 +72,7 @@ export function PreviewModal({
 
           {/* Question */}
           <div className="mb-8 w-full max-w-2xl rounded-xl bg-white p-6 text-center shadow-lg">
-            <h2 className="text-2xl font-bold text-gray-800">
+            <h2 className="text-2xl font-bold text-gray-800 whitespace-pre-wrap">
               {question.question || "Your question will appear here"}
             </h2>
           </div>

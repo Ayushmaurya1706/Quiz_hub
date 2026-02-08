@@ -115,23 +115,33 @@ export default function AdminRoomPage({ params }: { params: Promise<{ gamePin: s
               <table className="w-full">
                 <thead>
                   <tr className="border-b-2 border-purple-200">
-                    <th className="text-left py-3 px-4 font-black text-purple-600">#</th>
-                    <th className="text-left py-3 px-4 font-black text-purple-600">NAME</th>
-                    <th className="text-left py-3 px-4 font-black text-purple-600">FINAL SCORE</th>
+                    <th className="text-left py-3 px-4 font-black text-purple-600">RANK</th>
+                    <th className="text-left py-3 px-4 font-black text-purple-600">PLAYER</th>
+                    <th className="text-left py-3 px-4 font-black text-purple-600">SCORE</th>
+                    <th className="text-left py-3 px-4 font-black text-purple-600">CORRECT</th>
+                    <th className="text-left py-3 px-4 font-black text-purple-600">TIME</th>
                   </tr>
                 </thead>
                 <tbody>
                   {participants
                     .sort((a, b) => b.totalScore - a.totalScore)
-                    .map((p, idx) => (
-                      <tr key={p.id} className="border-b border-purple-100 hover:bg-purple-50">
-                        <td className="py-3 px-4 font-bold text-2xl">
-                          {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : idx + 1}
-                        </td>
-                        <td className="py-3 px-4 font-bold text-lg">{p.name}</td>
-                        <td className="py-3 px-4 font-bold text-lime-600 text-lg">{p.totalScore}</td>
-                      </tr>
-                    ))}
+                    .map((p, idx) => {
+                      const totalQuestions = room.quiz.questions.length
+                      const correct = Object.values(p.answers).filter(a => a.isCorrect).length
+                      const totalTime = p.totalQuizTime || 0
+                      const timeFormatted = `${Math.floor(totalTime / 60)}:${(totalTime % 60).toString().padStart(2, '0')}`
+                      return (
+                        <tr key={p.id} className="border-b border-purple-100 hover:bg-purple-50">
+                          <td className="py-3 px-4 font-bold text-2xl">
+                            {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : idx + 1}
+                          </td>
+                          <td className="py-3 px-4 font-bold text-lg">{p.name}</td>
+                          <td className="py-3 px-4 font-bold text-lime-600 text-lg">{p.totalScore.toLocaleString()}</td>
+                          <td className="py-3 px-4 font-bold text-lg">{correct}/{totalQuestions}</td>
+                          <td className="py-3 px-4 font-bold text-lg">{timeFormatted}</td>
+                        </tr>
+                      )
+                    })}
                 </tbody>
               </table>
             </div>

@@ -31,6 +31,7 @@ interface QuestionEditorProps {
   onAnswerChange: (answerId: string, updates: Partial<Answer>) => void
   onToggleCorrect: (answerId: string) => void
   onSetCorrectByIndex: (index: number) => void
+  onBasePointsChange: (points: number) => void
 }
 
 const answerConfigs = [
@@ -40,6 +41,13 @@ const answerConfigs = [
   { color: "bg-[var(--kahoot-green)]", hoverColor: "hover:bg-[#1e7009]", icon: Square, shape: "square" },
 ]
 
+const iconColors = [
+  "text-red-500",
+  "text-blue-500",
+  "text-yellow-500",
+  "text-green-500",
+]
+
 export function QuestionEditor({
   question,
   questionNumber,
@@ -47,6 +55,7 @@ export function QuestionEditor({
   onAnswerChange,
   onToggleCorrect,
   onSetCorrectByIndex,
+  onBasePointsChange,
 }: QuestionEditorProps) {
   const needsCorrectAnswer = question.type === "quiz" || question.type === "truefalse"
   const hasCorrectAnswer = question.correctOptionIndex >= 0
@@ -56,12 +65,28 @@ export function QuestionEditor({
       {/* Question Input Area */}
       <div className="mb-6 flex flex-col items-center">
         <div className="relative w-full max-w-2xl">
-          <div className="rounded-lg bg-white p-1 shadow-lg">
-            <Textarea
+          <div className="rounded-lg bg-white p-1 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <textarea
               value={question.question}
               onChange={(e) => onQuestionChange(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  const textarea = e.currentTarget
+                  const start = textarea.selectionStart
+                  const end = textarea.selectionEnd
+                  const newValue = question.question.substring(0, start) + '\n' + question.question.substring(end)
+                  onQuestionChange(newValue)
+
+                  // Set cursor position after the newline
+                  setTimeout(() => {
+                    textarea.selectionStart = textarea.selectionEnd = start + 1
+                  }, 0)
+                }
+              }}
               placeholder="Click to start typing your question"
-              className="min-h-[100px] resize-none border-none bg-transparent text-center text-xl font-bold text-gray-800 placeholder:text-gray-400 focus-visible:ring-0"
+              rows={4}
+              className="w-full resize-vertical border-none bg-transparent text-center text-xl font-bold text-gray-800 placeholder:text-gray-400 focus:outline-none p-4"
             />
           </div>
           <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[var(--kahoot-purple-dark)] px-3 py-1">
@@ -92,9 +117,24 @@ export function QuestionEditor({
         </Button>
       </div>
 
+      {/* Base Points Input */}
+      <div className="mb-6 flex justify-center">
+        <div className="flex items-center gap-4 rounded-lg bg-white p-4 shadow-lg">
+          <label className="text-sm font-semibold text-gray-700">Base Points:</label>
+          <input
+            type="number"
+            value={question.basePoints}
+            onChange={(e) => onBasePointsChange(parseInt(e.target.value) || 0)}
+            min="0"
+            max="1000"
+            className="w-20 rounded border border-gray-300 px-2 py-1 text-center font-bold text-purple-600 focus:border-purple-500 focus:outline-none"
+          />
+        </div>
+      </div>
+
       {/* Answer Options */}
       <div className="flex-1">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 items-start">
           {question.answers.map((answer, index) => {
             const config = answerConfigs[index] || answerConfigs[0]
             const Icon = config.icon
@@ -111,25 +151,39 @@ export function QuestionEditor({
                   }
                 }}
                 className={cn(
-                  "group relative flex min-h-[80px] cursor-pointer items-center gap-4 rounded-lg p-4 transition-all",
-                  config.color,
-                  config.hoverColor,
-                  isCorrect && "ring-4 ring-white ring-offset-2 ring-offset-[var(--kahoot-purple)]"
+                  "group relative flex min-h-[80px] h-auto cursor-pointer items-start gap-4 rounded-lg px-4 py-6 transition-all bg-white hover:bg-gray-100",
+                  isCorrect && "bg-green-500 scale-105"
                 )}
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center">
-                  <Icon className="h-8 w-8 fill-white/20 text-white" />
+                  <Icon className={cn("h-8 w-8", iconColors[index] || "text-gray-500")} />
                 </div>
-                <input
-                  type="text"
+                <textarea
                   value={answer.text}
                   onChange={(e) => {
                     e.stopPropagation()
                     onAnswerChange(answer.id, { text: e.target.value })
                   }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const textarea = e.currentTarget
+                      const start = textarea.selectionStart
+                      const end = textarea.selectionEnd
+                      const newValue = answer.text.substring(0, start) + '\n' + answer.text.substring(end)
+                      onAnswerChange(answer.id, { text: newValue })
+
+                      // Set cursor position after the newline
+                      setTimeout(() => {
+                        textarea.selectionStart = textarea.selectionEnd = start + 1
+                      }, 0)
+                    }
+                  }}
                   onClick={(e) => e.stopPropagation()}
                   placeholder={`Add answer ${index + 1}`}
-                  className="flex-1 bg-transparent text-lg font-medium text-white placeholder:text-white/50 focus:outline-none"
+                  rows={2}
+                  className="flex-1 bg-transparent text-lg font-medium text-gray-800 placeholder:text-gray-400 focus:outline-none resize-vertical min-h-[40px]"
                 />
                 <div
                   onClick={(e) => {
@@ -147,29 +201,15 @@ export function QuestionEditor({
                       : "border-white/50 bg-transparent text-transparent group-hover:border-white group-hover:bg-white/10"
                   )}
                 >
-                  <Check className={cn("h-6 w-6 transition-all", isCorrect ? "opacity-100" : "opacity-0 group-hover:opacity-30 group-hover:text-white")} />
+                  <Check className={cn("h-8 w-8 transition-all", isCorrect ? "opacity-100" : "opacity-0 group-hover:opacity-30 group-hover:text-gray-600")} />
                 </div>
-                {isCorrect && (
-                  <div className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-green-500 shadow-md animate-in zoom-in">
-                    <Check className="h-4 w-4 text-white" />
-                  </div>
-                )}
+
               </div>
             )
           })}
         </div>
         
-        {/* Points Info */}
-        <div className="mt-4 flex justify-center">
-          <div className="rounded-lg bg-white/10 px-4 py-2">
-            <span className="text-sm text-white/80">
-              {question.basePoints > 0 
-                ? `${question.basePoints} base points | ${question.timeLimit}s time limit`
-                : `No points | ${question.timeLimit}s time limit`
-              }
-            </span>
-          </div>
-        </div>
+
       </div>
     </main>
   )
