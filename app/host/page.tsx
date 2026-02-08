@@ -13,8 +13,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { QuestionEditor } from "@/components/quiz-creator/question-editor"
 
 
-interface QuestionForm extends Omit<Question, 'id'> {
+interface QuestionForm {
   tempId: string
+  text: string
+  options: Array<{ id: string; text: string }>
+  correctOptionId: string
+  basePoints: number
 }
 
 export default function HostPage() {
@@ -80,8 +84,13 @@ export default function HostPage() {
     const newQuestion: QuestionForm = {
       tempId: generateId(),
       text: "",
-      options: ["", "", "", ""],
-      correctOptionIndex: 0,
+      options: [
+        { id: generateId(), text: "" },
+        { id: generateId(), text: "" },
+        { id: generateId(), text: "" },
+        { id: generateId(), text: "" }
+      ],
+      correctOptionId: "",
       basePoints: 100,
     }
     setQuestions([...questions, newQuestion])
@@ -92,8 +101,8 @@ export default function HostPage() {
     const updated = [...questions]
     if (field === "options") {
       updated[index].options = value
-    } else if (field === "correctOptionIndex") {
-      updated[index].correctOptionIndex = value
+    } else if (field === "correctOptionId") {
+      updated[index].correctOptionId = value
     } else {
       updated[index] = { ...updated[index], [field]: value }
     }
@@ -110,23 +119,27 @@ export default function HostPage() {
     id: q.tempId,
     question: q.text,
     answers: q.options.map((opt, idx) => ({
-      id: `a${idx}`,
-      text: opt,
-      isCorrect: idx === q.correctOptionIndex
+      id: opt.id,
+      text: opt.text,
+      isCorrect: opt.id === q.correctOptionId
     })),
     timeLimit: 20,
     basePoints: q.basePoints,
     type: "quiz",
-    correctOptionIndex: q.correctOptionIndex
+    correctOptionIndex: q.options.findIndex(opt => opt.id === q.correctOptionId)
   })
 
   const updateFromEditorQuestion = (index: number, editorQuestion: ReturnType<typeof convertToEditorQuestion>) => {
     const updated = [...questions]
+    const correctOptionId = editorQuestion.correctOptionIndex >= 0 ? updated[index].options[editorQuestion.correctOptionIndex].id : ""
     updated[index] = {
       ...updated[index],
       text: editorQuestion.question,
-      options: editorQuestion.answers.map(a => a.text),
-      correctOptionIndex: editorQuestion.correctOptionIndex,
+      options: editorQuestion.answers.map((a, idx) => ({
+        id: updated[index].options[idx]?.id || generateId(),
+        text: a.text
+      })),
+      correctOptionId,
       basePoints: editorQuestion.basePoints
     }
     setQuestions(updated)
@@ -165,7 +178,7 @@ export default function HostPage() {
         toast.error(`Question ${i + 1}: Add question text`)
         return
       }
-      if (questions[i].options.some(opt => !opt.trim())) {
+      if (questions[i].options.some(opt => !opt.text.trim())) {
         toast.error(`Question ${i + 1}: Fill all options`)
         return
       }
@@ -179,7 +192,7 @@ export default function HostPage() {
         id: `q${idx}`,
         text: q.text,
         options: q.options,
-        correctOptionIndex: q.correctOptionIndex,
+        correctOptionId: q.correctOptionId,
         basePoints: q.basePoints,
       }))
 
@@ -193,7 +206,7 @@ export default function HostPage() {
         questions: formattedQuestions.map(q => ({
           question: q.text,
           answers: q.options,
-          correctAnswer: q.correctOptionIndex,
+          correctAnswerId: q.correctOptionId,
           timeLimit: 20, // Default time limit
           points: q.basePoints,
         })),
@@ -261,19 +274,15 @@ export default function HostPage() {
                       questionNumber={idx + 1}
                       onQuestionChange={(text) => updateQuestion(idx, "text", text)}
                       onAnswerChange={(answerId, updates) => {
-                        const answerIndex = parseInt(answerId.replace('a', ''))
                         if (updates.text !== undefined) {
-                          const newOptions = [...q.options]
-                          newOptions[answerIndex] = updates.text
+                          const newOptions = q.options.map(opt =>
+                            opt.id === answerId ? { ...opt, text: updates.text } : opt
+                          )
                           updateQuestion(idx, "options", newOptions)
                         }
                       }}
                       onToggleCorrect={(answerId) => {
-                        const answerIndex = parseInt(answerId.replace('a', ''))
-                        updateQuestion(idx, "correctOptionIndex", answerIndex)
-                      }}
-                      onSetCorrectByIndex={(index) => {
-                        updateQuestion(idx, "correctOptionIndex", index)
+                        updateQuestion(idx, "correctOptionId", answerId)
                       }}
                       onBasePointsChange={(points) => updateQuestion(idx, "basePoints", points)}
                     />
@@ -289,16 +298,16 @@ export default function HostPage() {
                   <div className="space-y-4">
                     <p className="text-xl font-bold text-gray-800">{q.text || "Untitled question"}</p>
                     <div className="grid grid-cols-2 gap-2">
-                      {q.options.map((opt, optIdx) => (
+                      {q.options.map((opt) => (
                         <div
-                          key={optIdx}
+                          key={opt.id}
                           className={`p-3 rounded-lg text-sm font-bold ${
-                            q.correctOptionIndex === optIdx
+                            opt.id === q.correctOptionId
                               ? "bg-green-100 text-green-700 border-2 border-green-500"
                               : "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {opt || "Empty"}
+                          {opt.text || "Empty"}
                         </div>
                       ))}
                     </div>

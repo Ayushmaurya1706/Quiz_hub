@@ -7,8 +7,8 @@ export interface RecentQuiz {
   description?: string
   questions: Array<{
     question: string
-    answers: string[]
-    correctAnswer: number
+    answers: Array<{ id: string; text: string }>
+    correctAnswerId: string
     timeLimit: number
     points: number
   }>

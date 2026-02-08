@@ -21,8 +21,8 @@ import { db } from "./firebase"
 export interface Question {
   id: string
   text: string
-  options: string[]
-  correctOptionIndex: number
+  options: Array<{ id: string; text: string }>
+  correctOptionId: string
   basePoints: number
 }
 
@@ -53,7 +53,7 @@ export interface Participant {
   sessionId: string
   createdByUid: string
   joinedAt: Timestamp
-  answers: Record<string, { optionIndex: number; submittedAt: Timestamp; isCorrect: boolean; timeTaken: number }>
+  answers: Record<string, { optionId: string; submittedAt: Timestamp; isCorrect: boolean; timeTaken: number }>
   totalScore: number
   status: "active" | "removed" // New field for kick feature
   quizStartedAt: Timestamp | null
@@ -221,8 +221,8 @@ export async function joinRoom(
 export async function submitAnswer(
   roomId: string,
   participantId: string,
-  questionIndex: number,
-  optionIndex: number
+  questionId: string,
+  optionId: string
 ): Promise<boolean> {
   // Locate the participant document in the specific room's participants subcollection
   const participantRef = doc(db, "rooms", roomId, "participants", participantId)
@@ -238,8 +238,10 @@ export async function submitAnswer(
   if (!roomDoc.exists()) throw new Error("Room not found")
 
   const room = roomDoc.data() as Room
-  const question = room.quiz.questions[questionIndex]
-  const isCorrect = optionIndex === question.correctOptionIndex
+  const question = room.quiz.questions.find(q => q.id === questionId)
+  if (!question) throw new Error("Question not found")
+
+  const isCorrect = optionId === question.correctOptionId
 
   // Calculate score (base points only)
   const submittedAt = Timestamp.now()
@@ -248,10 +250,10 @@ export async function submitAnswer(
 
   // Calculate time taken
   const questionStartTime = room.quiz.questionStartTime
-  const timeTaken = questionStartTime ? Math.floor(((submittedAt.seconds * 1000 + submittedAt.nanoseconds / 1000000) - (questionStartTime.seconds * 1000 + questionStartTime.nanoseconds / 1000000)) / 1000) : 0
+  const timeTaken = questionStartTime ? Math.floor((submittedAt.toMillis() - questionStartTime.toMillis()) / 1000) : 0
 
   // Check if previously answered to adjust score
-  const previousAnswer = participant.answers[questionIndex.toString()]
+  const previousAnswer = participant.answers[questionId]
   let scoreAdjustment = points
   if (previousAnswer) {
     // Subtract previous points if changing answer
@@ -261,8 +263,8 @@ export async function submitAnswer(
 
   // Update participant
   await updateDoc(participantRef, {
-    [`answers.${questionIndex}`]: {
-      optionIndex,
+    [`answers.${questionId}`]: {
+      optionId,
       submittedAt,
       isCorrect,
       timeTaken,
@@ -381,11 +383,12 @@ export async function getAdminDashboard(roomId: string): Promise<AdminDashboardR
   )
 
   const currentQuestionIndex = room.quiz.currentQuestionIndex
+  const questionId = room.quiz.questions[currentQuestionIndex].id
   const questionStartTime = room.quiz.questionStartTime
 
   return participantDocs.docs.map((doc) => {
     const participant = doc.data() as Participant
-    const answer = participant.answers[currentQuestionIndex.toString()]
+    const answer = participant.answers[questionId]
 
     return {
       participantId: doc.id,
@@ -423,7 +426,7 @@ export async function endQuiz(roomId: string): Promise<void> {
     const participant = doc.data() as Participant
     if (participant.quizStartedAt && !participant.quizFinishedAt) {
       const finishedAt = Timestamp.now()
-      const totalTime = Object.values(participant.answers).reduce((sum, answer) => sum + answer.timeTaken, 0)
+      const totalTime = Math.floor((finishedAt.toMillis() - participant.quizStartedAt.toMillis()) / 1000)
       batch.update(doc.ref, {
         quizFinishedAt: finishedAt,
         totalQuizTime: totalTime,
@@ -448,7 +451,7 @@ export async function leaveRoom(roomId: string, participantId: string): Promise<
 
     if (participant.quizStartedAt && !participant.quizFinishedAt) {
       const finishedAt = Timestamp.now()
-      const totalTime = Object.values(participant.answers).reduce((sum, answer) => sum + answer.timeTaken, 0)
+      const totalTime = Math.floor((finishedAt.toMillis() - participant.quizStartedAt.toMillis()) / 1000)
       console.log("Setting totalQuizTime to:", totalTime)
 
       await updateDoc(participantRef, {

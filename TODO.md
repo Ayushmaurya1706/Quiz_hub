@@ -1,16 +1,11 @@
-# COMPLETED: Tab-Switch Monitoring Feature
+# TODO: Fix totalQuizTime Calculation
 
-## Summary
-Successfully implemented a frontend-only tab-switch monitoring feature for quiz participants.
+## Steps to Complete
+- [x] Update totalQuizTime calculation in endQuiz function to use (quizFinishedAt - quizStartedAt) / 1000
+- [x] Update totalQuizTime calculation in leaveRoom function to use (quizFinishedAt - quizStartedAt) / 1000
+- [x] Verify that answer.timeTaken is kept for per-question analytics
+- [x] Test the changes to ensure result screen shows correct total quiz time
 
-## Features Implemented
-- ✅ Tab switch detection using `document.visibilitychange` during active quiz phases
-- ✅ Warning modal on first tab switch with clear message
-- ✅ Automatic removal on second tab switch with redirect to removal screen
-- ✅ Removed participants cannot continue the quiz (only "GO HOME" option)
-- ✅ Session-based counter (resets on page reload)
-- ✅ No backend impact, host unaffected, no database changes
-
-## Files Modified
-- `app/play/[gamePin]/page.tsx`: Added monitoring logic and warning modal
-- `app/play/[gamePin]/leave/page.tsx`: Updated to handle removal notifications and prevent continuation
+## Notes
+- Do not sum answer.timeTaken for totalQuizTime
+- Use Timestamp.toMillis() for accurate calculation

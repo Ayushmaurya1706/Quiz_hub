@@ -15,6 +15,7 @@ interface QuizCreatorQuestion {
   }>
   timeLimit: number
   basePoints: number
+  type: string
 }
 
 interface PreviewModalProps {

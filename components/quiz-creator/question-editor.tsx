@@ -14,7 +14,6 @@ interface QuizCreatorQuestion {
   timeLimit: number
   basePoints: number
   type: string
-  correctOptionIndex: number
 }
 
 interface Answer {
@@ -30,7 +29,6 @@ interface QuestionEditorProps {
   onQuestionChange: (text: string) => void
   onAnswerChange: (answerId: string, updates: Partial<Answer>) => void
   onToggleCorrect: (answerId: string) => void
-  onSetCorrectByIndex: (index: number) => void
   onBasePointsChange: (points: number) => void
 }
 
@@ -54,11 +52,10 @@ export function QuestionEditor({
   onQuestionChange,
   onAnswerChange,
   onToggleCorrect,
-  onSetCorrectByIndex,
   onBasePointsChange,
 }: QuestionEditorProps) {
   const needsCorrectAnswer = question.type === "quiz" || question.type === "truefalse"
-  const hasCorrectAnswer = question.correctOptionIndex >= 0
+  const hasCorrectAnswer = question.answers.some(a => a.isCorrect)
 
   return (
     <main className="flex flex-1 flex-col overflow-hidden bg-[var(--kahoot-purple)] p-6">
@@ -143,13 +140,7 @@ export function QuestionEditor({
             return (
               <div
                 key={answer.id}
-                onClick={() => {
-                  if (needsCorrectAnswer) {
-                    onSetCorrectByIndex(index)
-                  } else {
-                    onToggleCorrect(answer.id)
-                  }
-                }}
+                  onClick={() => onToggleCorrect(answer.id)}
                 className={cn(
                   "group relative flex min-h-[80px] h-auto cursor-pointer items-start gap-4 rounded-lg px-4 py-6 transition-all bg-white hover:bg-gray-100",
                   isCorrect && "bg-green-500 scale-105"
@@ -188,11 +179,7 @@ export function QuestionEditor({
                 <div
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (needsCorrectAnswer) {
-                      onSetCorrectByIndex(index)
-                    } else {
-                      onToggleCorrect(answer.id)
-                    }
+                    onToggleCorrect(answer.id)
                   }}
                   className={cn(
                     "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 transition-all cursor-pointer",

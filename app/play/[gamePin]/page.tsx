@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from "react"
 import { useParams } from "next/navigation"
-import { onRoomChange, onParticipantChange, submitAnswer, endQuiz, leaveRoom, type Room, type Participant } from "@/lib/quiz-service"
+import { onRoomChange, onParticipantChange, submitAnswer, endQuiz, leaveRoom, kickParticipant, type Room, type Participant } from "@/lib/quiz-service"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -29,6 +29,7 @@ interface ShuffledQuestion {
   correctOptionId: string
   basePoints: number
   originalIndex: number
+  correctAnswerIndex: number
 }
 
 function shuffleArray<T>(array: T[]): T[] {
@@ -97,18 +98,23 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
     }
 
     // Shuffle questions
-    const shuffledQuestions: ShuffledQuestion[] = shuffleArray(room.quiz.questions.map((q, qIndex) => ({
-      id: q.id,
-      text: q.text,
-      options: shuffleArray(q.options.map((opt, optIndex) => ({
-        id: `${q.id}_opt_${optIndex}`,
-        text: opt,
+    const shuffledQuestions: ShuffledQuestion[] = shuffleArray(room.quiz.questions.map((q, qIndex) => {
+      const shuffledOptions = shuffleArray(q.options.map((opt, optIndex) => ({
+        id: opt.id,
+        text: opt.text,
         originalIndex: optIndex
-      }))),
-      correctOptionId: `${q.id}_opt_${q.correctOptionIndex}`,
-      basePoints: q.basePoints,
-      originalIndex: qIndex
-    })))
+      })))
+      const correctOptionIndex = q.options.findIndex(opt => opt.id === q.correctOptionId)
+      return {
+        id: q.id,
+        text: q.text,
+        options: shuffledOptions,
+        correctOptionId: q.correctOptionId,
+        basePoints: q.basePoints,
+        originalIndex: qIndex,
+        correctAnswerIndex: correctOptionIndex
+      }
+    }))
 
     setShuffledQuestions(shuffledQuestions)
     sessionStorage.setItem(shuffleKey, JSON.stringify(shuffledQuestions))
@@ -126,9 +132,9 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
   useEffect(() => {
     if (participant && room && shuffledQuestions) {
       const shuffledQ = shuffledQuestions[currentQuestionIndex]
-      const answer = participant.answers[currentQuestionIndex.toString()]
+      const answer = participant.answers[shuffledQ.id]
       if (answer) {
-        const selectedIndex = shuffledQ.options.findIndex(opt => opt.originalIndex === answer.optionIndex)
+        const selectedIndex = shuffledQ.options.findIndex(opt => opt.id === answer.optionId)
         setSelectedOption(selectedIndex)
       } else {
         setSelectedOption(null)
@@ -180,7 +186,7 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
           } else if (newCount === 2) {
             // Remove participant
             if (roomId && participantId) {
-              leaveRoom(roomId, participantId).catch(console.error)
+              kickParticipant(roomId, participantId).catch(console.error)
             }
             // Redirect to removed screen
             window.location.href = `/play/${gamePin}/leave?removed=true`
@@ -205,15 +211,15 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
     try {
       setSelectedOption(optionIndex)
 
-      // Map shuffled index back to original index
+      // Get question and option IDs
       const shuffledQ = shuffledQuestions[currentQuestionIndex]
-      const originalIndex = shuffledQ.options[optionIndex].originalIndex
+      const optionId = shuffledQ.options[optionIndex].id
 
       await submitAnswer(
         roomId,
         participant.id,
-        currentQuestionIndex,
-        originalIndex
+        shuffledQ.id,
+        optionId
       )
 
       // Show answer selection feedback

@@ -20,6 +20,7 @@ export default function AdminQuizDisplayPage({ params }: { params: Promise<{ gam
   const [room, setRoom] = useState<Room | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [loading, setLoading] = useState(true)
+  const [adminQuestionIndex, setAdminQuestionIndex] = useState(0)
 
   const roomId = typeof window !== "undefined" ? sessionStorage.getItem("roomId") : null
 
@@ -111,15 +112,19 @@ export default function AdminQuizDisplayPage({ params }: { params: Promise<{ gam
     )
   }
 
-  const currentQuestion = room.quiz.questions[room.quiz.currentQuestionIndex]
+  const currentQuestion = room.quiz.questions[adminQuestionIndex]
+  const questionId = currentQuestion.id
   const answerCounts = [0, 0, 0, 0]
   let totalAnswered = 0
 
   participants.forEach((p) => {
-    const answer = p.answers[room.quiz.currentQuestionIndex]
+    const answer = p.answers[questionId]
     if (answer !== undefined) {
-      answerCounts[answer.optionIndex]++
-      totalAnswered++
+      const optionIndex = currentQuestion.options.findIndex(opt => opt.id === answer.optionId)
+      if (optionIndex !== -1) {
+        answerCounts[optionIndex]++
+        totalAnswered++
+      }
     }
   })
 
@@ -183,7 +188,7 @@ export default function AdminQuizDisplayPage({ params }: { params: Promise<{ gam
                     {String.fromCharCode(65 + index)}
                   </span>
                 </div>
-                <p className="text-2xl font-bold text-gray-800 mb-6 whitespace-pre-wrap">{option}</p>
+                <p className="text-2xl font-bold text-gray-800 mb-6 whitespace-pre-wrap">{option.text}</p>
                 <div className="w-full bg-gray-300 rounded-full h-8 overflow-hidden">
                   <div
                     className={`h-full ${answerBgColors[index]} transition-all duration-500`}
@@ -207,7 +212,7 @@ export default function AdminQuizDisplayPage({ params }: { params: Promise<{ gam
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-lg font-bold text-purple-800">{p.name}</p>
-                    <p className="text-sm text-gray-600">Answered: {p.answers[room.quiz.currentQuestionIndex] ? "Yes" : "No"}</p>
+                    <p className="text-sm text-gray-600">Answered: {p.answers[questionId] ? "Yes" : "No"}</p>
                   </div>
                   <Button
                     onClick={() => handleKickParticipant(p.id)}
@@ -219,6 +224,24 @@ export default function AdminQuizDisplayPage({ params }: { params: Promise<{ gam
               </Card>
             ))}
           </div>
+        </div>
+
+        {/* Admin Navigation Buttons */}
+        <div className="flex justify-center gap-4 mb-8 max-w-5xl mx-auto w-full">
+          <Button
+            onClick={() => setAdminQuestionIndex(Math.max(0, adminQuestionIndex - 1))}
+            disabled={adminQuestionIndex === 0}
+            className="bg-white/20 hover:bg-white/30 text-white font-black px-6 py-2"
+          >
+            ← Previous Question
+          </Button>
+          <Button
+            onClick={() => setAdminQuestionIndex(Math.min(room.quiz.questions.length - 1, adminQuestionIndex + 1))}
+            disabled={adminQuestionIndex === room.quiz.questions.length - 1}
+            className="bg-white/20 hover:bg-white/30 text-white font-black px-6 py-2"
+          >
+            Next Question →
+          </Button>
         </div>
 
         {/* Next Question Button - Hidden for auto flow, but kept in code if needed for manual override */}
