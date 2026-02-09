@@ -10,6 +10,7 @@ import {
   serverTimestamp,
   query,
   where,
+  orderBy,
   getDocs,
   Timestamp,
   writeBatch,
@@ -54,11 +55,11 @@ export interface Participant {
   createdByUid: string
   joinedAt: Timestamp
   answers: Record<string, { optionId: string; submittedAt: Timestamp; isCorrect: boolean; timeTaken: number }>
-  totalScore: number
+  score: number
   status: "active" | "removed" // New field for kick feature
   quizStartedAt: Timestamp | null
   quizFinishedAt: Timestamp | null
-  totalQuizTime: number | null // in seconds
+  timeUsed: number | null // in seconds
 }
 
 export interface AdminDashboardRow {
@@ -67,7 +68,7 @@ export interface AdminDashboardRow {
   answered: boolean
   isCorrect: boolean | null
   timeTaken: number | null
-  totalScore: number
+  score: number
 }
 
 // Generate a 6-character room code
@@ -177,11 +178,11 @@ export async function joinRoom(
       createdByUid: "",
       joinedAt: serverTimestamp() as Timestamp,
       answers: {},
-      totalScore: 0,
+      score: 0,
       status: "active", // New field for kick feature
       quizStartedAt: null,
       quizFinishedAt: null,
-      totalQuizTime: null,
+      timeUsed: null,
     }
 
     await setDoc(participantRef, {
@@ -269,7 +270,7 @@ export async function submitAnswer(
       isCorrect,
       timeTaken,
     },
-    totalScore: participant.totalScore + scoreAdjustment,
+    score: participant.score + scoreAdjustment,
   })
 
   return isCorrect
@@ -334,6 +335,23 @@ export async function nextQuestion(roomId: string): Promise<void> {
     await updateDoc(doc(db, "rooms", roomId), {
       "quiz.status": "quiz_ended",
     })
+
+    // Set quizFinishedAt and timeUsed for all active participants who haven't finished yet
+    const participantsQuery = query(collection(db, "rooms", roomId, "participants"), where("status", "==", "active"))
+    const participantsSnapshot = await getDocs(participantsQuery)
+    const batch = writeBatch(db)
+    participantsSnapshot.docs.forEach((doc) => {
+      const participant = doc.data() as Participant
+      if (participant.quizStartedAt && !participant.quizFinishedAt) {
+        const finishedAt = Timestamp.now()
+        const totalTime = Math.floor((finishedAt.toMillis() - participant.quizStartedAt.toMillis()) / 1000)
+        batch.update(doc.ref, {
+          quizFinishedAt: finishedAt,
+          timeUsed: totalTime,
+        })
+      }
+    })
+    await batch.commit()
   } else {
     // Start next question
     await startQuestion(roomId, nextIndex)
@@ -350,13 +368,26 @@ export function onRoomChange(
   })
 }
 
-// Real-time listener for participants in a room
+  // Real-time listener for participants in a room
 export function onParticipantsChange(
   roomId: string,
   callback: (participants: Participant[]) => void
 ): () => void {
-  return onSnapshot(collection(db, "rooms", roomId, "participants"), (snapshot) => {
+  const participantsQuery = query(
+    collection(db, "rooms", roomId, "participants"),
+    where("status", "==", "active")
+  )
+  return onSnapshot(participantsQuery, (snapshot) => {
     const participants = snapshot.docs.map((doc) => doc.data() as Participant)
+    // Sort by score descending, then by timeUsed ascending
+    participants.sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score
+      }
+      const timeA = a.timeUsed ?? Number.MAX_SAFE_INTEGER
+      const timeB = b.timeUsed ?? Number.MAX_SAFE_INTEGER
+      return timeA - timeB
+    })
     callback(participants)
   })
 }
@@ -398,7 +429,7 @@ export async function getAdminDashboard(roomId: string): Promise<AdminDashboardR
       timeTaken: answer && questionStartTime
         ? Math.round((answer.submittedAt.seconds - questionStartTime.seconds) * 1000) / 1000
         : null,
-      totalScore: participant.totalScore,
+      score: participant.score,
     }
   })
 }
@@ -418,7 +449,7 @@ export async function endQuiz(roomId: string): Promise<void> {
     "quiz.status": "quiz_ended",
   })
 
-  // Set quizFinishedAt and totalQuizTime for all active participants who haven't finished yet
+  // Set quizFinishedAt and timeUsed for all active participants who haven't finished yet
   const participantsQuery = query(collection(db, "rooms", roomId, "participants"), where("status", "==", "active"))
   const participantsSnapshot = await getDocs(participantsQuery)
   const batch = writeBatch(db)
@@ -429,7 +460,7 @@ export async function endQuiz(roomId: string): Promise<void> {
       const totalTime = Math.floor((finishedAt.toMillis() - participant.quizStartedAt.toMillis()) / 1000)
       batch.update(doc.ref, {
         quizFinishedAt: finishedAt,
-        totalQuizTime: totalTime,
+        timeUsed: totalTime,
       })
     }
   })
@@ -452,11 +483,11 @@ export async function leaveRoom(roomId: string, participantId: string): Promise<
     if (participant.quizStartedAt && !participant.quizFinishedAt) {
       const finishedAt = Timestamp.now()
       const totalTime = Math.floor((finishedAt.toMillis() - participant.quizStartedAt.toMillis()) / 1000)
-      console.log("Setting totalQuizTime to:", totalTime)
+      console.log("Setting timeUsed to:", totalTime)
 
       await updateDoc(participantRef, {
         quizFinishedAt: finishedAt,
-        totalQuizTime: totalTime,
+        timeUsed: totalTime,
       })
       console.log("Successfully updated participant with finish time")
     } else {

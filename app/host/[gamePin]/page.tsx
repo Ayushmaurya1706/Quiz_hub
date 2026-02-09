@@ -124,11 +124,11 @@ export default function AdminRoomPage({ params }: { params: Promise<{ gamePin: s
                 </thead>
                 <tbody>
                   {participants
-                    .sort((a, b) => b.totalScore - a.totalScore)
+                    .sort((a, b) => b.score - a.score)
                     .map((p, idx) => {
                       const totalQuestions = room.quiz.questions.length
                       const correct = Object.values(p.answers).filter(a => a.isCorrect).length
-                      const totalTime = p.totalQuizTime || 0
+                      const totalTime = p.timeUsed || 0
                       const timeFormatted = `${Math.floor(totalTime / 60)}:${(totalTime % 60).toString().padStart(2, '0')}`
                       return (
                         <tr key={p.id} className="border-b border-purple-100 hover:bg-purple-50">
@@ -136,7 +136,7 @@ export default function AdminRoomPage({ params }: { params: Promise<{ gamePin: s
                             {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : idx + 1}
                           </td>
                           <td className="py-3 px-4 font-bold text-lg">{p.name}</td>
-                          <td className="py-3 px-4 font-bold text-lime-600 text-lg">{p.totalScore.toLocaleString()}</td>
+                          <td className="py-3 px-4 font-bold text-lime-600 text-lg">{p.score.toLocaleString()}</td>
                           <td className="py-3 px-4 font-bold text-lg">{correct}/{totalQuestions}</td>
                           <td className="py-3 px-4 font-bold text-lg">{timeFormatted}</td>
                         </tr>
@@ -220,14 +220,14 @@ export default function AdminRoomPage({ params }: { params: Promise<{ gamePin: s
               </thead>
               <tbody>
                 {participants
-                  .sort((a, b) => b.totalScore - a.totalScore)
+                  .sort((a, b) => b.score - a.score)
                   .map((p, idx) => (
                     <tr key={p.id} className="border-b border-purple-100 hover:bg-purple-50">
                       <td className="py-3 px-4 font-bold">
                         {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : idx + 1}
                       </td>
                       <td className="py-3 px-4 font-bold">{p.name}</td>
-                      <td className="py-3 px-4 font-bold text-lime-600">{p.totalScore}</td>
+                      <td className="py-3 px-4 font-bold text-lime-600">{p.score}</td>
                     </tr>
                   ))}
               </tbody>
