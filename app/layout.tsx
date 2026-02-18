@@ -39,9 +39,6 @@ export default function RootLayout({
     <html lang="en">
       <body className={`font-sans antialiased`}>
         {children}
-        <div style={{ position: 'fixed', right: 8, bottom: 8, fontSize: 12, color: 'rgba(255,255,255,0.85)', background: 'rgba(0,0,0,0.18)', padding: '6px 8px', borderRadius: 6 }}>
-          done by Ayush Maurya
-        </div>
         <Analytics />
       </body>
     </html>
