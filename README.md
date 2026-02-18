@@ -8,4 +8,4 @@ This application uses Firebase (Spark / Free plan) for real-time data sync.
 
 For larger-scale or public events, upgrading the Firebase plan or optimizing listeners is recommended.
 for demo purose you can refer to the link
-https://real-time-quiz-game-xb61.vercel.app/
+https://quizgame-sigma-eight.vercel.app/
