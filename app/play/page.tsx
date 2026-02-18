@@ -92,11 +92,11 @@ export default function JoinPage() {
             </div>
 
             <div>
-              <Label htmlFor="playerName" className="text-purple-700 font-black text-lg">YOUR NAME</Label>
+              <Label htmlFor="playerName" className="text-purple-700 font-black text-lg">TICKET NO</Label>
               <Input
                 id="playerName"
                 type="text"
-                placeholder="Enter your name"
+                placeholder="Enter your ticket number"
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 className="mt-3 text-xl font-bold py-4 border-2 border-purple-300 rounded-xl"
@@ -127,7 +127,7 @@ export default function JoinPage() {
             <div>
               <h3 className="text-lg font-black text-purple-600 mb-2">Time Limit:</h3>
               <ul className="space-y-1 text-sm">
-                <li>• 20 questions – 15 minutes</li>
+              <li>• 15 questions – 20 minutes</li>
                 <li>• Questions can be reviewed again</li>
                 <li>• All answers should be completed within the given time</li>
                 <li>• If not submitted manually, the quiz will be auto-submitted</li>

@@ -1,3 +1,7 @@
+<div align="center">
+<span style="color: darkblue; font-size: 24px; font-weight: bold;">Bankatlal Badruka College for Information Technology</span>
+</div>
+
 # Real-Time Quiz Game - Setup Guide
 
 ## Overview

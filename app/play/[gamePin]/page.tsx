@@ -53,6 +53,7 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
   const [shuffledQuestions, setShuffledQuestions] = useState<ShuffledQuestion[] | null>(null)
   const [tabSwitchCount, setTabSwitchCount] = useState(0)
   const [showWarningModal, setShowWarningModal] = useState(false)
+  const [showViolationModal, setShowViolationModal] = useState(false)
 
   const participantId = typeof window !== "undefined" ? sessionStorage.getItem("participantId") : null
   const roomId = typeof window !== "undefined" ? sessionStorage.getItem("roomId") : null
@@ -160,8 +161,8 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
         if (roomId && participantId) {
           leaveRoom(roomId, participantId).catch(console.error)
         }
-        // Redirect to home (same as Submit Quiz button)
-        window.location.href = "/"
+        // Redirect to completed page
+        window.location.href = `/play/${gamePin}/completed?exitReason=TIME_OVER`
         // End the quiz globally for the host
         endQuiz(room.id).catch(console.error)
       }
@@ -184,12 +185,8 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
           if (newCount === 1) {
             setShowWarningModal(true)
           } else if (newCount === 2) {
-            // Remove participant
-            if (roomId && participantId) {
-              kickParticipant(roomId, participantId).catch(console.error)
-            }
-            // Redirect to removed screen
-            window.location.href = `/play/${gamePin}/leave?removed=true`
+            // Show violation modal instead of kicking/redirecting
+            setShowViolationModal(true)
           }
           return newCount
         })
@@ -202,6 +199,19 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [room?.quiz.status, roomId, participantId, gamePin])
+
+  const handleExitQuiz = async () => {
+    // Remove participant from the room
+    if (roomId && participantId) {
+      try {
+        await kickParticipant(roomId, participantId)
+      } catch (error) {
+        console.error("Failed to remove participant:", error)
+      }
+    }
+    // Redirect to home
+    window.location.href = "/"
+  }
 
   const handleSubmitAnswer = async (optionIndex: number) => {
     if (!room || !participant || !shuffledQuestions) return
@@ -242,9 +252,9 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
         console.error("Failed to record finish time:", error)
       }
     }
-    // Redirect to home - keep session storage intact so user can return if needed
+    // Redirect to completed page - keep session storage intact so user can return if needed
     // Data remains in Firestore for host to see final scores
-    window.location.href = "/"
+    window.location.href = `/play/${gamePin}/completed?exitReason=SUBMITTED_MANUALLY`
   }
 
   if (loading) {
@@ -474,6 +484,31 @@ export default function QuizPlayPage({ params }: { params: Promise<{ gamePin: st
                 OK
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Violation Modal for Second Tab Switch */}
+        <Dialog open={showViolationModal} onOpenChange={setShowViolationModal}>
+          <DialogContent
+            className="sm:max-w-md"
+            showCloseButton={false}
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-center text-red-600 font-black text-2xl">🚫 VIOLATION DETECTED</DialogTitle>
+            </DialogHeader>
+            <DialogDescription className="text-center text-lg font-bold text-gray-800">
+              You have switched tabs multiple times. This is a violation of the quiz rules.
+            </DialogDescription>
+            <div className="flex justify-center mt-4">
+              <Button
+                onClick={handleExitQuiz}
+                className="bg-red-500 hover:bg-red-600 text-white font-black px-8 py-2"
+              >
+                Exit Quiz
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
