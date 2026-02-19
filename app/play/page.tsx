@@ -130,7 +130,7 @@ export default function JoinPage() {
               <li>• 15 questions – 20 minutes</li>
                 <li>• Questions can be reviewed again</li>
                 <li>• All answers should be completed within the given time</li>
-                <li>• If not submitted manually, the quiz will be auto-submitted</li>
+                <li>• If not submitted manually, All answers must be submitted in stipulated time, otherwise the scores will not be considered.</li>
                 <li>• In case of any technical issue, contact the nearest invigilator</li>
               </ul>
             </div>

@@ -166,7 +166,8 @@ export default function AdminRoomPage({ params }: { params: Promise<{ gamePin: s
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-                    <h1 className="text-5xl font-black text-white mb-4">KAHOOT! HOST</h1>
+                    <h1 className="text-5xl font-black text-white mb-4">quiz host</h1>
+
           <p className="text-xl text-lime-400 font-bold">Room: {room.code}</p>
         </div>
 
