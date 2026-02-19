@@ -10,7 +10,10 @@ export default function WelcomePage() {
       <div className="w-full max-w-4xl">
         {/* College Name */}
         <div className="text-center mb-6">
-          <p className="text-2xl md:text-3xl font-semibold text-blue-600">
+          <p className="text-black text-xl md:text-2xl font-medium">
+            Seth Ghasiram Gopikishan Badruka Education Society
+          </p>
+          <p className="text-blue-600 text-2xl md:text-3xl font-semibold">
             Bankatlal Badruka College for Information Technology
           </p>
         </div>
@@ -18,7 +21,7 @@ export default function WelcomePage() {
         {/* Main Title */}
         <div className="text-center mb-4">
           <h1 className="text-5xl md:text-7xl font-black text-purple-700">
-            National Abacus IT Quiz
+            NATIONAL ABACUS  IT QUIZ
           </h1>
         </div>
 
